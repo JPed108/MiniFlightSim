@@ -4,8 +4,8 @@ CPPFLAGS += -Iinclude -Iglm
 LDLIBS += -lglfw -lGL -lGLU
 
 TARGET := projetoCG
-SOURCES := main.cpp SphereCube.cpp glad.c Camera.cpp
-HEADERS := include/SphereCube.h include/glad/glad.h include/KHR/khrplatform.h include/Camera.h include/stb_image.h include/stb_image_write.h include/CImg.h
+SOURCES := main.cpp SphereCube.cpp glad.c Camera.cpp Renderer.cpp
+HEADERS := include/SphereCube.h include/glad/glad.h include/KHR/khrplatform.h include/Camera.h include/stb_image.h include/stb_image_write.h include/CImg.h include/Renderer.h
 
 .PHONY: all run clean
 

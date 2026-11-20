@@ -45,6 +45,7 @@ class SphereCube
         int getIndicesCount() { return indicesCount; }
         PlanetData planetData;
         double localHeight(const glm::vec3& direction) const;
+        void draw() const;
 
         
         

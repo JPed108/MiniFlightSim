@@ -2,6 +2,7 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include "include/SphereCube.h"
+#include "Renderer.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -40,13 +41,16 @@ void iniciar()
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 
     // Componentes da luz (RGBA)
-    GLfloat ambientLight[]  = { 0.3f, 0.3f, 0.30f, 1.0f }; 
+    GLfloat ambientLight[]  = { 0.05f, 0.05f, 0.05f, 1.0f }; 
     GLfloat diffuseLight[]  = { 1.00f, 0.98f, 0.92f, 1.0f }; 
     GLfloat specularLight[] = { 0.40f, 0.40f, 0.40f, 1.0f };
+    GLfloat emissionMat[] = {1.00f, 0.98f, 0.92f, 1.0f};
 
     glLightfv(GL_LIGHT0, GL_AMBIENT,  ambientLight);
     glLightfv(GL_LIGHT0, GL_DIFFUSE,  diffuseLight);
     glLightfv(GL_LIGHT0, GL_SPECULAR, specularLight);
+    glMaterialfv(GL_FRONT, GL_EMISSION, emissionMat);
+
 }
 
 void inicializarEsferas(SphereCube spheres[], double r_p, double x, double y, double z)
@@ -93,85 +97,6 @@ void drawAxes(float length) // Gerado por IA para ajudar no debug
     glPopAttrib();
 }
 
-void desenhar_esferas(SphereCube *esferas, int n, Camera& camera, double dt)
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    glMultMatrixf(glm::value_ptr(camera.getViewMatrix()));
-
-    const glm::vec3 starPos = esferas[1].planetData.coords;    
-
-    // drawAxes(esferas[0].planetData.r * 1.5f); // Desenhar eixos para debug
-    
-    double time = glfwGetTime();
-    glPushMatrix();
-        if (esferas[1].planetData.orbitalPeriod > 1E-3)
-        {
-            double dTheta = 2.0 * M_PI / esferas[1].planetData.orbitalPeriod;
-            glRotated(-time * glm::degrees(dTheta), 0.0, 1.0, 0.0);
-        }
-
-        glTranslatef(
-            esferas[1].planetData.coords.x,
-            esferas[1].planetData.coords.y,
-            esferas[1].planetData.coords.z
-        );
-        GLfloat lightPosition[] = {0.0f, 0.0f, 0.0f, 1.0f};
-        glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
-
-    glPopMatrix();
-
-    // Desenhar as n esferas no array spheres
-    for (int i = 0; i < n; i++)
-    {
-        GLdouble *sphere_vertices = esferas[i].getVertices();
-        GLdouble *sphere_colors = esferas[i].getColors();
-        GLdouble *sphere_normals = esferas[i].getNormals();
-        GLuint *sphere_indices = esferas[i].getIndices();
-
-        
-        glPushMatrix();
-        if (esferas[i].planetData.orbitalPeriod > 1E-3)
-        {
-            double dTheta = 2.0 * M_PI / esferas[i].planetData.orbitalPeriod;
-            glRotated(-time * glm::degrees(dTheta), 0.0, 1.0, 0.0);
-        }
-        glTranslatef(esferas[i].planetData.coords.x, esferas[i].planetData.coords.y, esferas[i].planetData.coords.z);
-        //glRotatef(time * 5.0, 0.0, 1.0, 0.0); // Rotação da esfera em torno de seu próprio eixo
-        glScalef(esferas[i].planetData.r, esferas[i].planetData.r, esferas[i].planetData.r);
-        glPushAttrib(GL_CURRENT_BIT);
-            //ativa arrays que serão usados
-            glEnableClientState(GL_COLOR_ARRAY);
-            glEnableClientState(GL_VERTEX_ARRAY);
-
-            //associa dados aos arrays
-            glColorPointer(3, GL_DOUBLE, 0, sphere_colors);
-            glVertexPointer(3, GL_DOUBLE, 0, sphere_vertices);
-
-            if (sphere_normals)
-            {
-                glEnableClientState(GL_NORMAL_ARRAY);
-                glNormalPointer(GL_DOUBLE, 0, sphere_normals);
-            }
-
-
-
-            const GLsizei sphere_index_count = esferas[i].getIndicesCount();
-            glDrawElements(GL_TRIANGLE_STRIP, sphere_index_count, GL_UNSIGNED_INT, sphere_indices);
-            glPopAttrib();
-        glPopMatrix();
-    }
-
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_NORMAL_ARRAY);
-
-    glfwSwapBuffers(glfwGetCurrentContext());
-}
-
 //função chamada quando a tela é redimensionada 
 void redimensionar(GLFWwindow* janela, int largura, int altura )
 {
@@ -198,15 +123,6 @@ void click(GLFWwindow* janela, int botao, int acao, int modificadores )
 
 void processarEntrada(GLFWwindow* janela, Camera& camera, float deltaTime)
 {
-    //if (glfwGetKey(janela, GLFW_KEY_W) == GLFW_PRESS)
-    //    camera.moveForward(deltaTime);
-    //if (glfwGetKey(janela, GLFW_KEY_S) == GLFW_PRESS)
-    //    camera.moveForward(-deltaTime);
-    //if (glfwGetKey(janela, GLFW_KEY_A) == GLFW_PRESS)
-    //    camera.rotateLocal(0.0, 0.0f, deltaTime * 50.0f);
-    //if (glfwGetKey(janela, GLFW_KEY_D) == GLFW_PRESS)
-    //    camera.rotateLocal(0.0f, 0.0f, -deltaTime * 50.0f);
-
     if (glfwGetKey(janela, GLFW_KEY_RIGHT) == GLFW_PRESS)
         camera.rotateLocal(0.0f, -deltaTime * 50.0f, 0.0f);
     if (glfwGetKey(janela, GLFW_KEY_LEFT) == GLFW_PRESS)
@@ -259,10 +175,11 @@ int main(int argc, char const *argv[])
     double x = std::stod(argv[2]);
     double y = std::stod(argv[3]);
     double z = std::stod(argv[4]);
-
-    SphereCube esferas[2];
-    inicializarEsferas(esferas, r_p, x, y, z);
-    Camera camera(&esferas[0], VELOCIDADE); // esferas[0] é o planeta
+    
+    Renderer renderer;
+    SphereCube spheres[2];
+    inicializarEsferas(spheres, r_p, x, y, z);
+    Camera camera(&spheres[0], VELOCIDADE); // esferas[0] é o planeta
 
     AppState AppState;
     AppState.camera = &camera;
@@ -294,20 +211,20 @@ int main(int argc, char const *argv[])
 
     redimensionar(janela, 700, 700); // Inicializa a projeção
 
-    double lastFrame = glfwGetTime();
+    double lastTime = glfwGetTime();
     while (!glfwWindowShouldClose(janela))
     {
-        glfwPollEvents();
-
-        double currentFrame = glfwGetTime();
-        float deltaTime = static_cast<float>(currentFrame - lastFrame);
-        lastFrame = currentFrame;
-
+        
+        double currentTime = glfwGetTime();
+        float deltaTime = static_cast<float>(currentTime - lastTime);
+        lastTime = currentTime;
+        
         processarEntrada(janela, camera, deltaTime);
         camera.moveForward(deltaTime);
         //std::cout << "Camera Speed: (" << camera.getSpeed() << ")" << std::endl;
+        renderer.renderScene(spheres, 2, camera, currentTime);
         
-        desenhar_esferas(esferas, 2, camera, deltaTime);
+        glfwPollEvents();
     }
 
     glfwDestroyWindow(janela);

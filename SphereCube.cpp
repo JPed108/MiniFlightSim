@@ -294,6 +294,29 @@ double SphereCube::localHeight(const glm::vec3& direction) const
     return planetData.r * heightmapScale * sampleHeightMap(p.x, p.y);
 }
 
+void SphereCube::draw() const
+{
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(3, GL_DOUBLE, 0, vertices);
+
+    if (colors)
+    {
+        glEnableClientState(GL_COLOR_ARRAY);
+        glColorPointer(3, GL_DOUBLE, 0, colors);
+    }
+    if (normals)
+    {
+        glEnableClientState(GL_NORMAL_ARRAY);
+        glNormalPointer(GL_DOUBLE, 0, normals);
+    }
+
+    glDrawElements(GL_TRIANGLE_STRIP, indicesCount, GL_UNSIGNED_INT, indices);
+    
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
+}
+
 glm::vec2 SphereCube::sphericalToEquirectangular(double x, double y, double z) const
 {
     double u = 0.5 - atan2(z, x) / (2.0 * M_PI);
