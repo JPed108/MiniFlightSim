@@ -1,12 +1,11 @@
 #include "SphereCube.h"
 #include <algorithm>
-#include <cstddef>
 #include <iostream>
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
+#include <utility>
 #include <vector>
+
+#include "ImgIO.h"
+
 #define cimg_display 0
 #include "CImg.h"
 
@@ -75,7 +74,7 @@ void SphereCube::generateSphere(int n)
                 double y_sphere = y * sqrt(1.0 - (z2 / 2.0) - (x2 / 2.0) + (z2 * x2 / 3.0));
                 double z_sphere = z * sqrt(1.0 - (x2 / 2.0) - (y2 / 2.0) + (x2 * y2 / 3.0));
 
-                if (imgData.data != nullptr)
+                if (!imgData.data.empty())
                 {
                     glm::vec2 p = sphericalToEquirectangular(x_sphere, y_sphere, z_sphere);
                     float d = sampleHeightMap(p.x, p.y);
@@ -141,42 +140,49 @@ void SphereCube::generateSphere(int n)
 
 void SphereCube::loadHeightMap(const char *path, SphereCube::HeightMapData &data)
 {
-    data.data =  stbi_load(path, &data.width, &data.height, &data.channels, 1);
-    if (!data.data)
+    ImgIO::Image16 image;
+    std::string error;
+    if (!ImgIO::loadPng(path, ImgIO::Format::Gray, image, error))
     {
-        std::cerr << "Falha ao carregar imagem: "
-                << stbi_failure_reason() << '\n';
+        std::cerr << error << '\n';
         return;
     }
-    smoothHeightMap(data.data, data.width, data.height, 2.5f);
+
+    data.width = static_cast<int>(image.width);
+    data.height = static_cast<int>(image.height);
+    data.channels = 1;
+    data.data = std::move(image.pixels);
+    smoothHeightMap(data.data.data(), data.width, data.height, 2.5f);
 }
 
 // Função para o carregamento do normalMap 
 // Bastante ajuda do Gemini para fazer essa função se comportar da forma correta
 void SphereCube::loadNormalMap(const char *path, HeightMapData &data)  
 {
-    if (imgData.data == nullptr)
+    if (data.data.empty())
     {
         std::cerr << "HeightMap não carregado!" << std::endl;
         return;
     }
 
-    int nmWidth = 0, nmHeight = 0, nmChannels = 0;
-    data.normalMap = stbi_load(path, &nmWidth, &nmHeight, &nmChannels, 3);
-
-    // Geramos normalmap se ainda não existir
-    if (!data.normalMap)
+    ImgIO::Image16 image;
+    std::string error;
+    if (!ImgIO::loadPng(path, ImgIO::Format::RGB, image, error))
     {
-        std::cout << "NormalMap ainda não gerado. Gerando..." << std::endl;
-        generateNormalMap(path);
-        data.normalMap = stbi_load(path, &nmWidth, &nmHeight, &nmChannels, 3);
+        std::cerr << error << "; generating it\n";
+        if (!generateNormalMap(path))
+            return;
+
+        if (!ImgIO::loadPng(path, ImgIO::Format::RGB, image, error))
+        {
+            std::cerr << error << '\n';
+            return;
+        }
     }
 
-    if (!data.normalMap)
-    {
-        std::cerr << "Falha ao carregar NormalMap: " << path << std::endl;
-        return;
-    }
+    data.normalMap = std::move(image.pixels);
+    data.normalMapWidth = static_cast<int>(image.width);
+    data.normalMapHeight = static_cast<int>(image.height);
 
     // Preenchemos o array normals com os valores de normal lidos da imagem
     const int totalComponents = 6 * n * n * 3;
@@ -214,23 +220,23 @@ void SphereCube::loadNormalMap(const char *path, HeightMapData &data)
     }
 }
 
-void SphereCube::generateNormalMap(const char *path)
+bool SphereCube::generateNormalMap(const char *path)
 {
-    if (imgData.data == nullptr)
+    if (imgData.data.empty())
     {
         std::cout << "HeightMap não carregado!" << std::endl;
-        return;
+        return false;
     }
 
     int width  = imgData.width;
     int height = imgData.height;
-    std::vector<unsigned char> normalMap(width * height * 3);
+    std::vector<uint16_t> normalMap(static_cast<size_t>(width) * height * 3);
 
     // helper para obter o valor do heightmap em x e y. Usamos aritmética modular para fazer os pontos "darem a volta" no mapa.
     auto heightAt = [&](int x, int y) {
         x = (x + width) % width;
         y = std::clamp(y, 0, height - 1);
-        return imgData.data[y * width + x] / 255.0f;
+        return imgData.data[y * width + x] / 65535.0f;
     };
 
     // for paralelo para acelerar a geração do normalmap
@@ -266,28 +272,38 @@ void SphereCube::generateNormalMap(const char *path)
             // O vetor normal é dado por <-dFdx, -dFdy, 1.0>. 
             glm::vec3 n = glm::normalize(glm::vec3(-dFdx, -dFdy, 1.0f));
 
-            // Convertemos as componentes para 0 - 255 para serem salvo como PNG
+            // Convertemos as componentes para 0 - 65535 para serem salvo como PNG 16 bits
             int index = (i + width * j) * 3;
-            normalMap[index]     = static_cast<unsigned char>(std::clamp(std::round((n.x * 0.5f + 0.5f) * 255.0f), 0.0f, 255.0f));
-            normalMap[index + 1] = static_cast<unsigned char>(std::clamp(std::round((n.y * 0.5f + 0.5f) * 255.0f), 0.0f, 255.0f));
-            normalMap[index + 2] = static_cast<unsigned char>(std::clamp(std::round((n.z * 0.5f + 0.5f) * 255.0f), 0.0f, 255.0f));
+            normalMap[index]     = static_cast<uint16_t>(std::clamp(std::round((n.x * 0.5f + 0.5f) * 65535.0f), 0.0f, 65535.0f));
+            normalMap[index + 1] = static_cast<uint16_t>(std::clamp(std::round((n.y * 0.5f + 0.5f) * 65535.0f), 0.0f, 65535.0f));
+            normalMap[index + 2] = static_cast<uint16_t>(std::clamp(std::round((n.z * 0.5f + 0.5f) * 65535.0f), 0.0f, 65535.0f));
         }
     }
 
-    int success = stbi_write_png(path, width, height, 3, normalMap.data(), width * 3);
-    if (!success)
-        std::cerr << "Failed to write normal map: " << path << '\n';
+    ImgIO::Image16 image;
+    image.width = static_cast<unsigned>(width);
+    image.height = static_cast<unsigned>(height);
+    image.format = ImgIO::Format::RGB;
+    image.pixels = std::move(normalMap);
+    std::string error;
+    if (!ImgIO::savePng(path, image, error))
+    {
+        std::cerr << error << '\n';
+        return false;
+    }
+
+    return true;
 }
 
-void SphereCube::smoothHeightMap(unsigned char *data, int width, int height, float sigma)
+void SphereCube::smoothHeightMap(uint16_t *data, int width, int height, float sigma)
 {
-    cimg_library::CImg<unsigned char> img(data, width, height, 1, 1, true);
+    cimg_library::CImg<uint16_t> img(data, width, height, 1, 1, true);
     img.blur(sigma);
 }
 
 double SphereCube::localHeight(const glm::vec3& direction) const
 {
-    if (imgData.data == nullptr)
+    if (imgData.data.empty())
         return 0;
     glm::vec3 v_n = glm::normalize(direction);
     glm::vec2 p = sphericalToEquirectangular(v_n.x, v_n.y, v_n.z);
@@ -296,6 +312,8 @@ double SphereCube::localHeight(const glm::vec3& direction) const
 
 void SphereCube::draw() const
 {
+    shader->use();
+    shader->setFloat("uHeightMapScale", heightmapScale);
     glEnableClientState(GL_VERTEX_ARRAY);
     glVertexPointer(3, GL_DOUBLE, 0, vertices);
 
@@ -315,6 +333,12 @@ void SphereCube::draw() const
     glDisableClientState(GL_NORMAL_ARRAY);
     glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
+    glUseProgram(0);
+}
+
+void SphereCube::setShaders(Shader *shader)
+{
+    this->shader = shader;
 }
 
 glm::vec2 SphereCube::sphericalToEquirectangular(double x, double y, double z) const
@@ -338,7 +362,7 @@ double SphereCube::sampleHeightMap(double u, double v) const
     double ty = fy - y0;
 
     auto at = [&](int x, int y){
-        return static_cast<double>(imgData.data[y * imgData.width + x]) / 255.0;
+        return static_cast<double>(imgData.data[y * imgData.width + x]) / 65535.0;
     };
 
     double top = at(x0, y0) * (1.0 - tx) + at(x1, y0) * tx;
@@ -348,23 +372,23 @@ double SphereCube::sampleHeightMap(double u, double v) const
 
 glm::vec3 SphereCube::sampleNormalMap(double u, double v) const
 {
-    double fx = std::clamp(u, 0.0, 1.0) * (imgData.width - 1.0);
-    double fy = std::clamp(v, 0.0, 1.0) * (imgData.height - 1.0);
+    double fx = std::clamp(u, 0.0, 1.0) * (imgData.normalMapWidth - 1.0);
+    double fy = std::clamp(v, 0.0, 1.0) * (imgData.normalMapHeight - 1.0);
 
     int x0 = static_cast<int>(std::floor(fx));
     int y0 = static_cast<int>(std::floor(fy));
-    int x1 = (x0 + 1) % imgData.width;
-    int y1 = std::min(y0 + 1, imgData.height - 1);
+    int x1 = (x0 + 1) % imgData.normalMapWidth;
+    int y1 = std::min(y0 + 1, imgData.normalMapHeight - 1);
 
     double tx = fx - x0;
     double ty = fy - y0;
 
     auto at = [&](int x, int y){
-        int idx = (y * imgData.width + x) * 3;
+        int idx = (y * imgData.normalMapWidth + x) * 3;
         return glm::vec3(
-            (imgData.normalMap[idx] / 255.0) * 2.0f - 1.0f,
-            (imgData.normalMap[idx + 1] / 255.0) * 2.0f - 1.0f,
-            (imgData.normalMap[idx + 2] / 255.0) * 2.0f - 1.0f
+            (imgData.normalMap[idx] / 65535.0) * 2.0f - 1.0f,
+            (imgData.normalMap[idx + 1] / 65535.0) * 2.0f - 1.0f,
+            (imgData.normalMap[idx + 2] / 65535.0) * 2.0f - 1.0f
         );
     };
 

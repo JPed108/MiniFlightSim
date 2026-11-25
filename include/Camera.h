@@ -24,13 +24,13 @@ private:
     glm::quat orientation;
     glm::quat baseOrientation;
     float speed = 0.0f;                 // Velocidade de movimento da câmera
-    float takeOffSpeed = 5.0f;          // Velocidade de decolagem da câmera
-    float maxSpeed = 10.0f;              // Velocidade máxima de vôo da câmera
-    float minSpeed = 8.0f;              // Velocidade mínima de vôo da câmera
-    float acceleration = 2.0f;          // Aceleração da câmera na decolagem e pouso
+    float takeOffSpeed = 2.0f;          // Velocidade de decolagem da câmera
+    float maxSpeed = 5.0f;              // Velocidade máxima de vôo da câmera
+    float minSpeed = 2.5f;              // Velocidade mínima de vôo da câmera
+    float acceleration = 0.5f;          // Aceleração da câmera na decolagem e pouso
     float minHeight = 0.2f;            // Altura mínima da câmera sobre o planeta 
     float maxHeight = 20.0f;             // Altura máxima da câmera sobre o planeta
-    float height = 0.5f;               // Altura atual da câmera sobre o planeta
+    float height = 0.01f;               // Altura atual da câmera sobre o planeta
     SphereCube* planet = nullptr;       // Ponteiro para o planeta
     float pitchAngle = -20.0f;
     CameraStatus status = CameraStatus::ON_GROUND;

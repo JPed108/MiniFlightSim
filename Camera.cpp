@@ -4,18 +4,18 @@
 Camera::Camera(SphereCube* planet, float speed)
     : maxSpeed(speed), height(minHeight), planet(planet)
      {
-       const glm::vec3 initialNormal(1.0f, 0.0f, 0.0f);
-      const double initialTerrainHeight = height < maxHeight
+        const glm::vec3 initialNormal = glm::normalize(glm::vec3(9.7487f, -6.08989f, 39.1398f));
+        const double initialTerrainHeight = height < maxHeight
           ? planet->localHeight(initialNormal)
           : 0.0;
-       const float initialRadius = static_cast<float>(
+        const float initialRadius = static_cast<float>(
           planet->planetData.r + height + initialTerrainHeight);
        position = planet->planetData.coords + initialNormal * initialRadius;
         
         glm::vec3 defaultUp(0.0f, 1.0f, 0.0f);
-        glm::vec3 surfaceNormal(1.0f, 0.0f, 0.0f);
+        //glm::vec3 surfaceNormal(1.0f, 0.0f, 0.0f);
 
-        baseOrientation = glm::rotation(defaultUp, surfaceNormal);
+        baseOrientation = glm::rotation(defaultUp, initialNormal);
         orientation = viewDirection(baseOrientation);
         
         
@@ -90,6 +90,7 @@ void Camera::moveForward(float dt)
     const float totalRadius = static_cast<float>(
         planet->planetData.r + height + terrainHeight);
     position = planetCenter + surfaceNormal * totalRadius;
+    //std::cout << "x: " << position.x << "y: " << position.y << "z: " << position.z << std::endl;
 
     glm::vec3 currentUp = getUpVector();
     glm::quat alignmentRot = glm::rotation(currentUp, surfaceNormal);

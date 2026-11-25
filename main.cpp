@@ -1,14 +1,19 @@
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-#include "include/SphereCube.h"
-#include "Renderer.h"
-
 #include <cstdlib>
+#include <cstdint>
 #include <iostream>
 #include <string>
-#include "include/Camera.h"
+#include <utility>
 #include <glm/gtc/type_ptr.hpp>
+#include <vector>
+
+#include "include/SphereCube.h"
+#include "Renderer.h"
+#include "FastNoiseLite.h"
+#include "include/Camera.h"
+#include "ImgIO.h"
 
 const float VELOCIDADE = 10.0f;
 const int n = 25; // Número de vértices por face do cubo
@@ -19,6 +24,28 @@ struct AppState
     bool isWireframe = false;
     Camera* camera = nullptr;
 };
+
+GLuint compileShader(GLenum type, const char* source)
+{
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
+
+    GLint success = GL_FALSE;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        GLint logLength = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+        std::string log(logLength, '\0');
+        glGetShaderInfoLog(shader, logLength, nullptr, log.data());
+        std::cerr << "Shader compilation failed:\n" << log << std::endl;
+        glDeleteShader(shader);
+        return 0;
+    }
+
+    return shader;
+}
 
 void iniciar()
 {
@@ -53,15 +80,19 @@ void iniciar()
 
 }
 
-void inicializarEsferas(SphereCube spheres[], double r_p, double x, double y, double z)
+void inicializarEsferas(SphereCube spheres[], double r_p, double x, double y, double z, 
+                       Shader& shaderPlanet, Shader& shaderStar, std::string heightmap_path)
 {
     GLfloat planetColor[3] = {0.0f, 1.0f, 0.0f}; // Verde
-    SphereCube planet(200, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, "./heightmap/EarthHeightMap.jpg");
-    //SphereCube planet(200, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, "./heightmap/HeightMap_Marte.jpg");
-    //SphereCube planet(200, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, "./heightmap/lua.jpg");
+    SphereCube planet(250, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, heightmap_path.c_str());
+    planet.setShaders(&shaderPlanet);
+
+    //SphereCube planet(200, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, "./heightmap/HeightMap_Marte.png");
+    //SphereCube planet(200, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, "./heightmap/lua.png");
 
     GLfloat starColor[3] = {1.0f, 1.0f, 0.0f}; // Amarelo
     SphereCube star(10, starColor, x, y, z, 1.0, 30.0);
+    star.setShaders(&shaderStar);
 
     spheres[0] = planet;
     spheres[1] = star;
@@ -121,6 +152,55 @@ void click(GLFWwindow* janela, int botao, int acao, int modificadores )
     
 }
 
+void generatePlanet()
+{
+    int width = 2048;
+    int height = 1024;
+    std::vector<uint16_t> pixelData(width * height);
+     
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    noise.SetFrequency(0.5f);
+    for (int j = 0; j < height; j++)
+    {
+        float v = static_cast<float>(j) / static_cast<float>(height - 1);
+        float phi = v * M_PI; // de 0 a PI
+
+        for (int i = 0; i < width; i++)
+        {
+            float u = static_cast<float>(i) / static_cast<float>(width - 1);
+            float theta = u * 2 * M_PI;
+
+            float x = sin(phi) * cos(theta);
+            float y = cos(phi);
+            float z = sin(phi) * sin(theta);
+
+            float noiseVal = noise.GetNoise(x, y, z);
+            float normalizedVal = (noiseVal + 1.0f) * 0.5f;
+
+            uint16_t finalHeight = static_cast<uint16_t>(normalizedVal * 65535.0f);
+            pixelData[j * width + i] = finalHeight;
+        }
+    }
+
+    ImgIO::Image16 image;
+    image.width = static_cast<unsigned>(width);
+    image.height = static_cast<unsigned>(height);
+    image.format = ImgIO::Format::Gray;
+    image.pixels = std::move(pixelData);
+
+    std::string error;
+    if (ImgIO::savePng("random_map.png", image, error))
+    {
+        std::cout << "Mapa aleatório gerado!" << std::endl;
+    }
+    else
+    {
+        std::cerr << "Falha na gravação do mapa: " << error << std::endl;
+    }
+    
+}
+
 void processarEntrada(GLFWwindow* janela, Camera& camera, float deltaTime)
 {
     if (glfwGetKey(janela, GLFW_KEY_RIGHT) == GLFW_PRESS)
@@ -167,24 +247,25 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 
 int main(int argc, char const *argv[])
 {
-    if (argc != 5) {
-        std::cerr << "Uso: " << argv[0] << " <raio_planeta> <x_estrela> <y_estrela> <z_estrela>" << std::endl;
+    if (argc < 5) {
+        std::cerr << "Uso: " << argv[0] << " <raio_planeta> <x_estrela> <y_estrela> <z_estrela> <opcional: caminho_HeightMap" << std::endl;
         return EXIT_FAILURE;
     }    
     double r_p = std::stod(argv[1]);
     double x = std::stod(argv[2]);
     double y = std::stod(argv[3]);
     double z = std::stod(argv[4]);
+    std::string heightmap_path;
+    if (argc == 6)
+    {
+        heightmap_path = argv[5];
+    }
     
-    Renderer renderer;
-    SphereCube spheres[2];
-    inicializarEsferas(spheres, r_p, x, y, z);
-    Camera camera(&spheres[0], VELOCIDADE); // esferas[0] é o planeta
-
-    AppState AppState;
-    AppState.camera = &camera;
     if (!glfwInit())
         return -1;
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 
     GLFWwindow* janela = glfwCreateWindow(700, 700, "SuperMiniFlightSim", NULL, NULL );
 
@@ -197,34 +278,50 @@ int main(int argc, char const *argv[])
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cout << "Failed to initialize GLAD" << std::endl;
+        glfwDestroyWindow(janela);
+        glfwTerminate();
         return -1;
     }
 
-    glfwSetWindowUserPointer(janela, &AppState);
-    
-    //Novidade: funções orientadas a eventos de entrada
-    glfwSetFramebufferSizeCallback(janela, redimensionar);
-    //glfwSetMouseButtonCallback(janela, clicar);
-    glfwSetKeyCallback(janela, key_callback);
-
-    iniciar();
-
-    redimensionar(janela, 700, 700); // Inicializa a projeção
-
-    double lastTime = glfwGetTime();
-    while (!glfwWindowShouldClose(janela))
     {
+        Renderer renderer;
+        SphereCube spheres[2];
+        Shader shaderPlanet("Shaders/planet_vertex.vert", "Shaders/planet_fragment.frag");
+        Shader shaderStar("Shaders/general_vertex.vert", "Shaders/general_fragment.frag");
+        inicializarEsferas(spheres, r_p, x, y, z, shaderPlanet, shaderStar, heightmap_path);
+        Camera camera(&spheres[0], VELOCIDADE); // esferas[0] é o planeta
+
+        AppState AppState;
+        AppState.camera = &camera;
+
+        glfwSetWindowUserPointer(janela, &AppState);
         
-        double currentTime = glfwGetTime();
-        float deltaTime = static_cast<float>(currentTime - lastTime);
-        lastTime = currentTime;
-        
-        processarEntrada(janela, camera, deltaTime);
-        camera.moveForward(deltaTime);
-        //std::cout << "Camera Speed: (" << camera.getSpeed() << ")" << std::endl;
-        renderer.renderScene(spheres, 2, camera, currentTime);
-        
-        glfwPollEvents();
+        //Novidade: funções orientadas a eventos de entrada
+        glfwSetFramebufferSizeCallback(janela, redimensionar);
+        //glfwSetMouseButtonCallback(janela, clicar);
+        glfwSetKeyCallback(janela, key_callback);
+
+        iniciar();
+
+        redimensionar(janela, 700, 700); // Inicializa a projeção
+
+        double lastTime = glfwGetTime();
+        while (!glfwWindowShouldClose(janela))
+        {
+            
+            double currentTime = glfwGetTime();
+            float deltaTime = static_cast<float>(currentTime - lastTime);
+            lastTime = currentTime;
+            
+            processarEntrada(janela, camera, deltaTime);
+            camera.moveForward(deltaTime);
+            //std::cout << "Camera Speed: (" << camera.getSpeed() << ")" << std::endl;
+            renderer.renderScene(spheres, 2, camera, currentTime);
+            
+            glfwPollEvents();
+        }
+
+        glUseProgram(0);
     }
 
     glfwDestroyWindow(janela);
