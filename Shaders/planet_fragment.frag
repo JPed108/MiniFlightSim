@@ -6,6 +6,8 @@ varying vec3 vObjPos;
 varying vec3 vViewPos;
 varying vec3 vObjNormal;
 
+uniform float uTime;
+
 
 // Função de ruído obtida de: https://gist.github.com/clauswilke/c39feab04463b779200dfa68d6890b5a
 
@@ -145,10 +147,25 @@ void main()
     // Vetor dir é a normal em relação à superfície do planeta. O ângulo é dado por:
     float inc = degrees(acos(clamp(dot(dir, N), -1.0, 1.0)));
     // Se o ângulo for muito elevado, pintamos o terreno com cor de rocha
-    float rockCenter = 35.0 + noise * 5.0;  
-    float rockFactor = smoothstep(rockCenter - 10.0, rockCenter + 10.0, inc);
+    float rockCenter = 45.0 + noise * 5.0;  
+    float rockFactor = smoothstep(rockCenter - 10.0, rockCenter + 10.0, inc) * (1.0 - smoothstep(65.0, 70.0, lat));
+
     albedo = mix(albedo, rock, rockFactor);
 
+    // Ondas na praia
+    // Criamos uma função seno variando no tempo, regiões mais distantes dos continentes possuem alturas menores, ondas chegam primeiro
+    // Máscara de regiões próximas às costas
+    // Frequência das ondas aumentam mais próximas da costa
+    // Fase das ondas depende da produndidade
+    float noise2 = snoise(dir * 60.0 + vec3(uTime * 0.15));
+    
+    float coast = (1.0 - smoothstep(0.21, 0.23, h + noise * 0.004)) * smoothstep(0.18, 0.19, h + noise * 0.004);
+    float phase = h * 180.0 - uTime * 3.0 + noise * 5.0 + lat * 0.2;
+
+    float wave = pow(max(sin(phase) - (0.3 + noise2 * 0.3), 0.0), 4.0);
+
+    vec3 wave_color = mix(shallowWater, vec3(1.0), wave);
+    albedo = mix(albedo, wave_color, coast);
 
     // Vetor em direção à câmera
     vec3 V = normalize(-vViewPos);

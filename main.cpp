@@ -14,6 +14,7 @@
 #include "FastNoiseLite.h"
 #include "include/Camera.h"
 #include "ImgIO.h"
+#include <ctime>
 
 const float VELOCIDADE = 10.0f;
 const int n = 25; // Número de vértices por face do cubo
@@ -152,15 +153,39 @@ void click(GLFWwindow* janela, int botao, int acao, int modificadores )
     
 }
 
-void generatePlanet()
+void generatePlanet(float oceanDepth, float mountainHeight)
 {
     int width = 2048;
     int height = 1024;
     std::vector<uint16_t> pixelData(width * height);
-     
-    FastNoiseLite noise;
-    noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    noise.SetFrequency(0.5f);
+    int seed = static_cast<int>(std::time(nullptr));    
+
+    FastNoiseLite continentMask;
+    continentMask.SetSeed(seed);
+    continentMask.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    continentMask.SetFrequency(0.6f);
+    continentMask.SetFractalType(FastNoiseLite::FractalType_FBm);
+    continentMask.SetFractalOctaves(5);
+    continentMask.SetFractalGain(0.5);
+
+    FastNoiseLite mountainMask;
+    mountainMask.SetSeed(seed + 1);
+    mountainMask.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    mountainMask.SetFrequency(0.6f);
+    mountainMask.SetFractalType(FastNoiseLite::FractalType_Ridged);
+    mountainMask.SetFractalOctaves(5);
+    mountainMask.SetFractalGain(0.5);
+
+    FastNoiseLite warpNoise;
+    warpNoise.SetSeed(seed + 2);
+    warpNoise.SetDomainWarpType(FastNoiseLite::DomainWarpType_OpenSimplex2);
+    warpNoise.SetFrequency(1.2f);          
+    warpNoise.SetDomainWarpAmp(0.45f);    
+    warpNoise.SetFractalType(FastNoiseLite::FractalType_DomainWarpProgressive);
+    warpNoise.SetFractalOctaves(3);
+    warpNoise.SetFractalGain(0.5f);
+
+    #pragma omp parallel for schedule(static)
     for (int j = 0; j < height; j++)
     {
         float v = static_cast<float>(j) / static_cast<float>(height - 1);
@@ -175,14 +200,16 @@ void generatePlanet()
             float y = cos(phi);
             float z = sin(phi) * sin(theta);
 
-            float noiseVal = noise.GetNoise(x, y, z);
-            float normalizedVal = (noiseVal + 1.0f) * 0.5f;
+            warpNoise.DomainWarp(x, y, z);
 
-            uint16_t finalHeight = static_cast<uint16_t>(normalizedVal * 65535.0f);
+            float continent = (continentMask.GetNoise(x, y, z) + 1.0f) * 0.5f;
+
+            uint16_t finalHeight = static_cast<uint16_t>(continent * 65535.0f);
             pixelData[j * width + i] = finalHeight;
+
         }
     }
-
+    
     ImgIO::Image16 image;
     image.width = static_cast<unsigned>(width);
     image.height = static_cast<unsigned>(height);
@@ -190,7 +217,7 @@ void generatePlanet()
     image.pixels = std::move(pixelData);
 
     std::string error;
-    if (ImgIO::savePng("random_map.png", image, error))
+    if (ImgIO::savePng("./heightmap/random_map.png", image, error))
     {
         std::cout << "Mapa aleatório gerado!" << std::endl;
     }
@@ -239,7 +266,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         if (appState->camera->getFlyingStatus() == Camera::CameraStatus::ON_GROUND) 
             appState->camera->changeFlyingStatus(Camera::CameraStatus::TAKING_OFF); // muda o estado da câmera para decolagem
 
-         else if (appState->camera->getFlyingStatus() == Camera::CameraStatus::FLYING) 
+         else if (appState->camera->getFlyingStatus() == Camera::CameraStatus::FLYING || appState->camera->getFlyingStatus() == Camera::CameraStatus::TAKING_OFF)  
             appState->camera->changeFlyingStatus(Camera::CameraStatus::LANDING);    // muda o estado da câmera para pouso
         
     }
@@ -259,6 +286,11 @@ int main(int argc, char const *argv[])
     if (argc == 6)
     {
         heightmap_path = argv[5];
+    }
+    if (argc == 5)
+    {
+        generatePlanet(0.5f, 0.5f);
+        heightmap_path = "./heightmap/random_map.png";
     }
     
     if (!glfwInit())
@@ -326,6 +358,8 @@ int main(int argc, char const *argv[])
 
     glfwDestroyWindow(janela);
     glfwTerminate();
+
+    //generatePlanet(0.1, 0.1);
 
     return EXIT_SUCCESS;
 }

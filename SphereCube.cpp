@@ -307,13 +307,17 @@ double SphereCube::localHeight(const glm::vec3& direction) const
         return 0;
     glm::vec3 v_n = glm::normalize(direction);
     glm::vec2 p = sphericalToEquirectangular(v_n.x, v_n.y, v_n.z);
-    return planetData.r * heightmapScale * sampleHeightMap(p.x, p.y);
+    float d = sampleHeightMap(p.x, p.y);
+    return planetData.r * heightmapScale * d;
 }
 
-void SphereCube::draw() const
+void SphereCube::draw(double time) const
 {
     shader->use();
     shader->setFloat("uHeightMapScale", heightmapScale);
+    shader->setFloat("uTime", static_cast<float>(time));
+    shader->setFloat("uPlanetRadius", planetData.r);
+
     glEnableClientState(GL_VERTEX_ARRAY);
     glVertexPointer(3, GL_DOUBLE, 0, vertices);
 

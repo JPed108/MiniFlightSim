@@ -31,7 +31,7 @@ class SphereCube
         int indicesCount = 0;
         int verticesCount = 0;
         int n = 0;
-        float heightmapScale = 0.04f; 
+        float heightmapScale = 0.05f; 
         Shader *shader;
         
         void generateSphere(int n);
@@ -55,7 +55,7 @@ class SphereCube
         int getIndicesCount() { return indicesCount; }
         PlanetData planetData;
         double localHeight(const glm::vec3& direction) const;
-        void draw() const;
+        void draw(double time) const;
 
         void setShaders(Shader *shader);
         

@@ -56,7 +56,7 @@ void Renderer::renderScene(SphereCube *spheres, int n, Camera &camera, double ti
             glScalef(r, r, r);
 
             setEmissiveMaterial(i == 1);
-            spheres[i].draw();
+            spheres[i].draw(time);
         glPopMatrix();
     }
     setEmissiveMaterial(false);
