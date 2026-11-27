@@ -29,7 +29,7 @@ private:
     float minSpeed = 2.5f;              // Velocidade mínima de vôo da câmera
     float acceleration = 0.5f;          // Aceleração da câmera na decolagem e pouso
     float minHeight = 0.2f;            // Altura mínima da câmera sobre o planeta 
-    float maxHeight = 20.0f;             // Altura máxima da câmera sobre o planeta
+    float maxHeight = 8.0f;             // Altura máxima da câmera sobre o planeta
     float height = 0.01f;               // Altura atual da câmera sobre o planeta
     SphereCube* planet = nullptr;       // Ponteiro para o planeta
     float pitchAngle = -20.0f;

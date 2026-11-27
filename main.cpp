@@ -54,11 +54,9 @@ void iniciar()
     glClearColor (0.0, 0.0, 0.0, 0.0);
     glShadeModel (GL_SMOOTH);
     glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(0xFFFFFFFF);
-    glEnable(GL_DEPTH_TEST);
     
     // Luz
     glEnable(GL_LIGHTING);
@@ -70,9 +68,9 @@ void iniciar()
 
     // Componentes da luz (RGBA)
     GLfloat ambientLight[]  = { 0.05f, 0.05f, 0.05f, 1.0f }; 
-    GLfloat diffuseLight[]  = { 1.00f, 0.98f, 0.92f, 1.0f }; 
-    GLfloat specularLight[] = { 0.40f, 0.40f, 0.40f, 1.0f };
-    GLfloat emissionMat[] = {1.00f, 0.98f, 0.92f, 1.0f};
+    GLfloat diffuseLight[]  = { 1.00f, 1.0f, 1.0f, 1.0f }; 
+    GLfloat specularLight[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    GLfloat emissionMat[] = {1.00f, 1.0f, 1.0f, 1.0f};
 
     glLightfv(GL_LIGHT0, GL_AMBIENT,  ambientLight);
     glLightfv(GL_LIGHT0, GL_DIFFUSE,  diffuseLight);
@@ -82,21 +80,27 @@ void iniciar()
 }
 
 void inicializarEsferas(SphereCube spheres[], double r_p, double x, double y, double z, 
-                       Shader& shaderPlanet, Shader& shaderStar, std::string heightmap_path)
+                       Shader& shaderPlanet, Shader& shaderSky, Shader& shaderStar, std::string heightmap_path)
 {
     GLfloat planetColor[3] = {0.0f, 1.0f, 0.0f}; // Verde
     SphereCube planet(250, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, heightmap_path.c_str());
     planet.setShaders(&shaderPlanet);
 
+    GLfloat skyColor[3] = {0.0f, 0.0f, 1.0f}; // Verde
+    SphereCube sky(100, skyColor, 0.0, 0.0, 0.0, r_p * (1.0f + 0.3f), 0.0);
+    sky.setShaders(&shaderSky);
+    sky.planetData.isAtmosphere = true;
+
     //SphereCube planet(200, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, "./heightmap/HeightMap_Marte.png");
     //SphereCube planet(200, planetColor, 0.0, 0.0, 0.0, r_p, 0.0, "./heightmap/lua.png");
 
-    GLfloat starColor[3] = {1.0f, 1.0f, 0.0f}; // Amarelo
+    GLfloat starColor[3] = {1.0f, 1.0f, 1.0f}; // Amarelo
     SphereCube star(10, starColor, x, y, z, 1.0, 30.0);
     star.setShaders(&shaderStar);
 
-    spheres[0] = planet;
-    spheres[1] = star;
+    spheres[0] = sky;
+    spheres[1] = planet;
+    spheres[2] = star;
 }
 
 void drawAxes(float length) // Gerado por IA para ajudar no debug
@@ -268,7 +272,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 
          else if (appState->camera->getFlyingStatus() == Camera::CameraStatus::FLYING || appState->camera->getFlyingStatus() == Camera::CameraStatus::TAKING_OFF)  
             appState->camera->changeFlyingStatus(Camera::CameraStatus::LANDING);    // muda o estado da câmera para pouso
-        
     }
 }
 
@@ -317,11 +320,12 @@ int main(int argc, char const *argv[])
 
     {
         Renderer renderer;
-        SphereCube spheres[2];
+        SphereCube spheres[3];
         Shader shaderPlanet("Shaders/planet_vertex.vert", "Shaders/planet_fragment.frag");
+        Shader shaderSky("Shaders/sky_vertex.vert", "Shaders/sky_fragment.frag");
         Shader shaderStar("Shaders/general_vertex.vert", "Shaders/general_fragment.frag");
-        inicializarEsferas(spheres, r_p, x, y, z, shaderPlanet, shaderStar, heightmap_path);
-        Camera camera(&spheres[0], VELOCIDADE); // esferas[0] é o planeta
+        inicializarEsferas(spheres, r_p, x, y, z, shaderPlanet, shaderSky, shaderStar, heightmap_path);
+        Camera camera(&spheres[1], VELOCIDADE); // esferas[1] é o planeta
 
         AppState AppState;
         AppState.camera = &camera;
@@ -348,7 +352,7 @@ int main(int argc, char const *argv[])
             processarEntrada(janela, camera, deltaTime);
             camera.moveForward(deltaTime);
             //std::cout << "Camera Speed: (" << camera.getSpeed() << ")" << std::endl;
-            renderer.renderScene(spheres, 2, camera, currentTime);
+            renderer.renderScene(spheres, 3, camera, currentTime);
             
             glfwPollEvents();
         }

@@ -11,7 +11,7 @@
 class SphereCube
 {
     private:
-        struct PlanetData{glm::vec3 coords{0.0,0.0,0.0}; double r = 1.0; double orbitalPeriod = 0.0;};
+        struct PlanetData{glm::vec3 coords{0.0,0.0,0.0}; double r = 1.0; double orbitalPeriod = 0.0; bool isAtmosphere = false;};
         struct HeightMapData{
             std::vector<uint16_t> data;
             std::vector<uint16_t> normalMap;
@@ -58,5 +58,6 @@ class SphereCube
         void draw(double time) const;
 
         void setShaders(Shader *shader);
+        Shader *getShader() {return shader;};
         
 };

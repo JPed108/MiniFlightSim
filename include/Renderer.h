@@ -9,7 +9,7 @@
 class Renderer
 {
 private:
-    void updateStarLight(const SphereCube& star, double time);
+    void updateStarLight(const glm::vec3& sunWorldPosition);
     void setEmissiveMaterial(bool isStar);
 
 public:

@@ -87,8 +87,10 @@ void Camera::moveForward(float dt)
     const double terrainHeight = height < maxHeight
         ? planet->localHeight(surfaceNormal)
         : 0.0;
-    const float totalRadius = static_cast<float>(
+    float totalRadius = static_cast<float>(
         planet->planetData.r + height + terrainHeight);
+    float maxRadius = planet->planetData.r + maxHeight;
+    totalRadius = (totalRadius > maxRadius) ? maxRadius : totalRadius;
     position = planetCenter + surfaceNormal * totalRadius;
     //std::cout << "x: " << position.x << "y: " << position.y << "z: " << position.z << std::endl;
 

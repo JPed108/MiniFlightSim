@@ -7,6 +7,7 @@ varying vec3 vViewPos;
 varying vec3 vObjNormal;
 
 uniform float uTime;
+uniform float uPlanetRadius;
 
 
 // Função de ruído obtida de: https://gist.github.com/clauswilke/c39feab04463b779200dfa68d6890b5a
@@ -122,6 +123,7 @@ void main()
     vec3 rock         = vec3(0.42, 0.39, 0.36);
     vec3 snow         = vec3(0.95, 0.96, 0.98);
     vec3 seaIce       = vec3(0.352, 0.731, 0.950);
+    vec3 skyColor     = vec3(0.529, 0.808, 0.922);
     // Misturamos os dois tipos de grama com base no ruído para quebrar a cor uniforme
     vec3 grassColor = mix(grass, grass2, smoothstep(0.3, 0.7, (noise + 1.0) * 0.5));
 
@@ -174,7 +176,7 @@ void main()
 
 
     //Lambertiano puro
-    float diff = max(dot(vNormal , L), 0.0);
+    float diff = clamp(dot(vNormal , L), 0.0, 1.0);
 
     // Blinn phong
     vec3 H = normalize(V + L);
@@ -183,7 +185,20 @@ void main()
 
     float spec = (diff > 0.0) ? pow(NdotH, 64.0) : 0.0;
 
-    vec3 finalColor = albedo * (0.2 + 0.8 * diff) + 0.4*spec;
-    gl_FragColor = vec4(finalColor, 1.0);
+    vec3 litColor = albedo * (0.2 + 0.8 * diff) + 0.4*spec;
+
+    // Névoa atmosférica devido à distância 
+
+    float dist = length(vViewPos);
+    float hazeStart = 0.2*uPlanetRadius;
+    float hazeEnd = 0.8*uPlanetRadius;
+
+    float t = clamp((dist - hazeStart)/max(hazeEnd - hazeStart, 0.0001), 0.0, 1.0);
+    float hazeFactor = 1.0 - exp(-t*t*4.0);
+
+    vec3 finalColor = mix(litColor, skyColor, hazeFactor);
+
+    
+    gl_FragColor = vec4(litColor, 1.0);
 
 }

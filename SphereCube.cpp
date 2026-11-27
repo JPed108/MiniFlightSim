@@ -313,10 +313,22 @@ double SphereCube::localHeight(const glm::vec3& direction) const
 
 void SphereCube::draw(double time) const
 {
+    if (planetData.isAtmosphere)
+    {
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_FRONT);
+    }
+
     shader->use();
     shader->setFloat("uHeightMapScale", heightmapScale);
     shader->setFloat("uTime", static_cast<float>(time));
-    shader->setFloat("uPlanetRadius", planetData.r);
+    if(!planetData.isAtmosphere)
+        {
+            shader->setFloat("uPlanetRadius", planetData.r);
+        }
+
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glVertexPointer(3, GL_DOUBLE, 0, vertices);
@@ -337,6 +349,9 @@ void SphereCube::draw(double time) const
     glDisableClientState(GL_NORMAL_ARRAY);
     glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
+    glCullFace(GL_BACK);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
     glUseProgram(0);
 }
 
